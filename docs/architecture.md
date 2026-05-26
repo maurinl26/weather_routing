@@ -76,7 +76,58 @@ ensuite avec `xr.open_mfdataset`. Nécessite `~/.cdsapirc`.
 
 ### 2.2 Observations d'opportunité
 
-Chaque source produit une `Observation` (cf. `data/obs/base.py`) :
+Le pipeline est en **deux étages** explicitement séparés. C'est le seul
+endroit où on a accepté un peu de cérémonie, parce que l'invariant
+"agnostique du paramètre physique" est central pour le cours.
+
+```
+┌──────────────────────────┐  pd.DataFrame  ┌───────────────────────────┐
+│  Fetcher  (fetchers/)    │ ─────────────▶ │  ObservationAdapter       │
+│                          │   normalisé    │  (obs/adapter.py)         │
+│  CMEMS / ASCAT / AISHub  │   schéma CF    │                           │
+│  EMODnet / VOS / Synth.  │                │  seul à connaître :       │
+│                          │                │   - le state vector       │
+│  Ne SAIT RIEN du modèle  │                │   - les opérateurs H      │
+└──────────────────────────┘                └────────────┬──────────────┘
+                                                         │ Observation[]
+                                                         ▼
+                                                  Assimilator (DA)
+```
+
+**Couche Fetcher** (`data/fetchers/`) — un module par source réelle. Tous
+exposent la même méthode :
+
+```python
+class Fetcher(ABC):
+    name: str
+    def fetch(self, t0: str, t1: str, bbox: BBox) -> pd.DataFrame: ...
+```
+
+Le DataFrame est *normalisé* sur le schéma `(timestamp, lat, lon,
+variable, value, [uncertainty, platform_id, ...])`. La colonne `variable`
+contient un nom **CF standard** (cf. `data/cf_names.py`). Un fetcher peut
+remonter du vent, des vagues, de la SST ou de la densité de trafic — le
+code en aval s'adapte via le mapping.
+
+Fetchers livrés :
+
+| Module | Source | Auth | Cas d'usage |
+|---|---|---|---|
+| `cmems_insitu.py` | CMEMS In-Situ TAC (bouées, mâts) | Copernicus Marine | obs *ref* haute qualité |
+| `ascat.py` | Scattéromètre Metop (KNMI ou EUMETSAT) | anonyme ou EUMDAC | vent océan satellite |
+| `aishub.py` | AISHub (live, reciprocity) | clé AISHub | positions AIS temps réel |
+| `emodnet_ais.py` | EMODnet Human Activities | anonyme | densité AIS historique |
+| `vos_gts.py` | NOAA IMMA (VOS reports) | anonyme | obs météo navires marchands |
+| `synthetic_ais.py` | générateur de voiliers virtuels | aucune | TP du cours sans clé |
+
+**Couche Adapter** (`obs/adapter.py`) — paramétrée par un dict
+`{variable_cf: ChannelSpec(channel_index, sigma_default, ...)}`. Elle :
+
+1. **canonicalise** les alias de variable (`WSPD → wind_speed_at_10m`),
+2. **décompose** automatiquement `(speed, direction) → (u, v)` si la source
+   remonte du polaire et le modèle attend du cartésien,
+3. **construit** l'opérateur `H` adapté (bilinéaire ou log-loi pour
+   hub height), et **renvoie** des `Observation` :
 
 ```python
 @dataclass
@@ -85,18 +136,12 @@ class Observation:
     coords:   ndarray           # (N, 3+)   lat, lon, t_hours, [z]
     sigma_o:  ndarray           # erreur d'obs (N,)
     H:        Callable          # x:(B,C,H,W) -> y_pred:(B,N)   DIFFÉRENTIABLE
-    var_name: str
-    source:   str
+    var_name: str               # nom CF canonique
+    source:   str               # nom du fetcher d'origine
 ```
 
-L'opérateur `H` est central :
-
-- **AIS, bouées, ASCAT** → interpolation bilinéaire (`make_bilinear_H`)
-  sur le canal `u10` ou `v10`. Le `channel_index` est attaché au callable
-  pour les solveurs simples (nudging).
-- **Fermes éoliennes** → composition `bilinéaire ∘ extrapolation log-loi`
-  pour passer de `(u10, v10)` à la vitesse à hub height (~100 m).
-  Profil log neutre marin, `z0 ≈ 2e-4 m`.
+Variables non mappées → silencieusement ignorées (utile : un fetcher CMEMS
+peut remonter du `wave_height` même si le modèle ne le sait pas).
 
 **Propriété clé** : tous les `H` sont écrits en PyTorch pur ; `autograd`
 fonctionne au travers, ce qui est obligatoire pour le DPS (qui rétro-propage

@@ -8,8 +8,8 @@ comment passer du state vector modèle (C, H, W) aux mesures (N,).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 import torch

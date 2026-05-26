@@ -2,8 +2,22 @@
 
 
 def test_data_imports():
-    from wxrouting.data import crop, era5_arco, era5_cds, registry  # noqa: F401
-    from wxrouting.data.obs import ais, ascat, base, buoys, operators, windfarm  # noqa: F401
+    from wxrouting.data import cf_names, crop, era5_arco, era5_cds, registry  # noqa: F401
+    from wxrouting.data.obs import adapter, base, operators  # noqa: F401
+
+
+def test_fetchers_imports():
+    # Les fetchers réseau (cmems, ascat, emodnet, vos, aishub) importent
+    # paresseusement leurs dépendances ; le module lui-même doit charger.
+    from wxrouting.data.fetchers import (  # noqa: F401
+        aishub,
+        ascat,
+        base,
+        cmems_insitu,
+        emodnet_ais,
+        synthetic_ais,
+        vos_gts,
+    )
 
 
 def test_assim_imports():
