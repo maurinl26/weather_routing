@@ -1,0 +1,16 @@
+# @package _global_
+# Assimilation par Diffusion Posterior Sampling — conditionne la diffusion sur y.
+defaults:
+  - override /dataloader: era5_arco_bog
+
+experiment_name: assim_dps
+tags: ["assim", "dps", "score-based"]
+
+assim:
+  _target_: wxrouting.assim.dps.DPSAssimilator
+  num_inference_steps: 50
+  guidance_scale: 1.0           # poids du terme ∇log p(y|x)
+  ensemble_size: 16
+  window_hours: 24
+  obs_sources: ["ais", "buoys", "windfarm", "ascat"]
+  checkpoint: ???

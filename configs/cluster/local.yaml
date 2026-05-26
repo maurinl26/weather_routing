@@ -1,0 +1,9 @@
+# Mac M-series ou poste de dev — prototypage uniquement.
+name: local
+accelerator: auto        # "mps" sur Mac Apple Silicon, "cpu" sinon
+devices: 1
+num_nodes: 1
+strategy: auto
+precision: 32-true       # MPS n'aime pas bf16 partout
+num_workers: 2
+persistent_workers: false

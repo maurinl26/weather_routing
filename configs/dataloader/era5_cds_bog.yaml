@@ -1,0 +1,17 @@
+# Téléchargement Copernicus CDS — pour compléter ARCO (mois récents, variables manquantes).
+_target_: wxrouting.data.era5_cds.Era5CdsDownloader
+
+cache_dir: "data/era5_cds"        # cache local Zarr
+dataset: "reanalysis-era5-pressure-levels"   # ou "reanalysis-era5-single-levels"
+
+# Mêmes vars que ARCO pour rester compatibles avec le state vector du modèle.
+variables:
+  surface: ["10m_u_component_of_wind", "10m_v_component_of_wind",
+            "2m_temperature", "mean_sea_level_pressure"]
+  level:   ["geopotential", "temperature",
+            "u_component_of_wind", "v_component_of_wind", "specific_humidity"]
+  pressure_levels: [50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000]
+
+# Une requête CDS = un (year, month). Le downloader chunke en interne.
+years: [2024, 2025]
+months: "all"

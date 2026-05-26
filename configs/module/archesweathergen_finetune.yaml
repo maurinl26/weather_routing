@@ -1,0 +1,37 @@
+# Lightning module qui wrappe ArchesWeatherGen pour le fine-tuning régional.
+_target_: wxrouting.finetune.lightning_module.ArchesGenFinetune
+
+# Checkpoint pré-entraîné (HF Hub).
+pretrained_repo: "INRIA-Arches/ArchesWeatherGen-S"
+pretrained_revision: "main"
+
+# Stratégie de freeze (cf. wxrouting.finetune.freeze).
+freeze:
+  backbone: true              # gèle le transformer ; on ne fine-tune que les têtes
+  unfreeze_after_epochs: 3    # dégel progressif
+
+# Optim.
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.95]
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: 50                   # epochs
+  eta_min: 1.0e-6
+
+# Diffusion (DDPM/EDM — cf. geoarches).
+diffusion:
+  num_train_steps: 1000
+  num_inference_steps: 20
+  ensemble_size: 8            # nb de membres tirés à l'éval
+
+# Trainer Lightning.
+trainer:
+  max_epochs: 50
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+  log_every_n_steps: 25
+  val_check_interval: 1.0

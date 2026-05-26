@@ -1,0 +1,9 @@
+# GPU cloud à la demande (Lambda, RunPod, GCP A100/H100).
+name: cloud
+accelerator: gpu
+devices: 1
+num_nodes: 1
+strategy: auto
+precision: bf16-mixed
+num_workers: 4
+persistent_workers: true

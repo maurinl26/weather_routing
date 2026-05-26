@@ -1,0 +1,41 @@
+name: smoke-train
+
+# But : valider sur chaque PR que la composition Hydra + le Lightning module +
+# le DataModule s'assemblent sans erreur. Pas d'entraînement réel (CPU, 1 step,
+# dataset synthétique). Évite que la glue casse sans qu'on s'en aperçoive.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - run: uv python install 3.11
+
+      - name: Install deps (sans geoarches)
+        run: |
+          uv venv
+          uv pip install -e ".[dev]" --no-deps
+          uv pip install torch lightning hydra-core omegaconf xarray zarr \
+            pandas numpy scipy
+
+      - name: Compose Hydra config (dry-run)
+        # On résout la config sans lancer l'entraînement — détecte les casses
+        # de typage / clés manquantes / instanciation cassée.
+        run: |
+          uv run python -c "
+          from hydra import compose, initialize
+          with initialize(version_base='1.3', config_path='configs'):
+              cfg = compose(config_name='config', overrides=['experiment=finetune_bog'])
+              print(cfg)
+          "

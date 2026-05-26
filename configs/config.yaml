@@ -1,0 +1,29 @@
+# Racine Hydra — composition par défaut.
+# Override en ligne : `wxr-train experiment=finetune_bog cluster=slurm`
+
+defaults:
+  - _self_
+  - cluster: local
+  - dataloader: era5_arco_bog
+  - module: archesweathergen_finetune
+  - experiment: null         # un experiment écrase au besoin
+
+# Domaine régional — Golfe de Gascogne
+domain:
+  name: bay_of_biscay
+  lat_min: 43.0
+  lat_max: 48.0
+  lon_min: -10.0
+  lon_max: -1.0
+  # padding (en pixels grille) pour conserver le champ réceptif du transformer
+  pad_pixels: 8
+
+seed: 1337
+output_dir: ${hydra:runtime.output_dir}
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}

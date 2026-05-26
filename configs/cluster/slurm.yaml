@@ -1,0 +1,18 @@
+# Cluster académique type Jean Zay / Adastra / MeluXina.
+name: slurm
+accelerator: gpu
+devices: 4               # GPUs par nœud
+num_nodes: 1
+strategy: ddp
+precision: bf16-mixed
+num_workers: 8
+persistent_workers: true
+
+# Champs lus par scripts/slurm.sbatch (pas par Lightning) :
+slurm:
+  partition: gpu_p4
+  qos: qos_gpu-t3
+  account: null          # à remplir
+  time: "20:00:00"
+  cpus_per_task: 10
+  mem_per_gpu: "40G"

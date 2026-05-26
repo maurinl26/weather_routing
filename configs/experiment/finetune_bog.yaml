@@ -1,0 +1,8 @@
+# @package _global_
+# Expérience : fine-tuning régional Golfe de Gascogne.
+defaults:
+  - override /dataloader: era5_arco_bog
+  - override /module: archesweathergen_finetune
+
+experiment_name: finetune_bog
+tags: ["finetune", "bay-of-biscay", "archesweathergen"]

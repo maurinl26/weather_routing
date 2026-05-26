@@ -1,0 +1,60 @@
+name: train-dispatch
+
+# Lance un entraînement réel via soumission SBATCH sur un cluster SLURM accessible
+# par SSH. Déclenchement manuel — pas exécuté automatiquement.
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   SLURM_HOST         host SSH du cluster (ex. jean-zay.idris.fr)
+#   SLURM_USER         user SSH
+#   SLURM_SSH_KEY      clé privée OpenSSH
+#   SLURM_REMOTE_DIR   chemin du repo cloné côté cluster (ex. $WORK/weather_routing)
+#
+# Variables d'environnement (Settings → Variables) :
+#   SLURM_PARTITION, SLURM_ACCOUNT (optionnel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Nom de l'experiment Hydra"
+        required: true
+        default: "finetune_bog"
+      git_ref:
+        description: "Ref Git à entraîner"
+        required: true
+        default: "main"
+      nodes:
+        description: "Nombre de nœuds SLURM"
+        required: true
+        default: "1"
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SLURM_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.SLURM_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Update remote checkout + submit SBATCH
+        env:
+          REMOTE: ${{ secrets.SLURM_USER }}@${{ secrets.SLURM_HOST }}
+          REMOTE_DIR: ${{ secrets.SLURM_REMOTE_DIR }}
+          EXP: ${{ inputs.experiment }}
+          REF: ${{ inputs.git_ref }}
+          NODES: ${{ inputs.nodes }}
+        run: |
+          ssh "$REMOTE" bash -lc "'
+            set -euo pipefail
+            cd $REMOTE_DIR
+            git fetch --all --prune
+            git checkout $REF
+            git pull --ff-only
+            uv sync
+            EXP=$EXP sbatch --nodes=$NODES scripts/slurm.sbatch
+          '"

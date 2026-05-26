@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version
+
+# uv
+uv.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Données (jamais commitées) — ancré à la racine pour ne pas matcher src/wxrouting/data/
+/data/
+*.zarr/
+*.nc
+*.grib
+*.grb
+*.h5
+*.hdf5
+
+# Checkpoints
+checkpoints/
+outputs/                  # défaut Hydra
+multirun/                 # défaut Hydra multirun
+wandb/
+lightning_logs/
+runs/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.cdsapirc                 # clés Copernicus
+*.key

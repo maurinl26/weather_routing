@@ -1,0 +1,14 @@
+# @package _global_
+# Assimilation par nudging (baseline pédagogique).
+defaults:
+  - override /dataloader: era5_arco_bog
+
+experiment_name: assim_nudging
+tags: ["assim", "nudging", "baseline"]
+
+assim:
+  _target_: wxrouting.assim.nudging.NudgingAssimilator
+  alpha: 0.1                    # coefficient de relaxation
+  window_hours: 24
+  obs_sources: ["ais", "buoys"]
+  checkpoint: ???               # checkpoint fine-tuné à fournir
