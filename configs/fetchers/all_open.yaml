@@ -1,0 +1,24 @@
+# Preset : toutes les sources ouvertes — démo "DA d'opportunité maximale".
+# Mélange obs satellite + bouées + navires marchands + voiliers virtuels.
+cmems:
+  _target_: wxrouting.data.fetchers.cmems_insitu.CMEMSInSituFetcher
+  dataset_id: cmems_obs-ins_ibi_phybgcwav_mynrt_na_irr
+  cache_dir: data/cmems_insitu
+
+ascat:
+  _target_: wxrouting.data.fetchers.ascat.ASCATFetcher
+  backend: knmi
+  cache_dir: data/ascat
+  platform: metop_b
+  product: ascat_25_l2
+
+vos:
+  _target_: wxrouting.data.fetchers.vos_gts.VOSFetcher
+  cache_dir: data/vos_imma
+
+synthetic:
+  _target_: wxrouting.data.fetchers.synthetic_ais.SyntheticAISFetcher
+  n_vessels: 30
+  n_points_per_track: 24
+  noise_sigma_ms: 1.0
+  seed: 42

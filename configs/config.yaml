@@ -6,7 +6,8 @@ defaults:
   - cluster: local
   - dataloader: era5_arco_bog
   - module: archesweathergen_finetune
-  - experiment: null         # un experiment écrase au besoin
+  - fetchers: synthetic_only   # preset par défaut (sans clé API)
+  - experiment: null           # un experiment écrase au besoin
 
 # Domaine régional — Golfe de Gascogne
 domain:

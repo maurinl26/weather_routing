@@ -109,6 +109,25 @@ class Era5ArcoDataModule(L.LightningDataModule):
             ds = crop(ds, self.domain)
         self._full = ds
 
+    # ------------------------------------------------------------------
+    # Grille modèle — exposée à l'adapter pour construire les opérateurs H.
+    # ------------------------------------------------------------------
+    @property
+    def grid_lat(self) -> np.ndarray:
+        assert self._full is not None, "call setup() first"
+        return self._full["latitude"].values
+
+    @property
+    def grid_lon(self) -> np.ndarray:
+        assert self._full is not None, "call setup() first"
+        return self._full["longitude"].values
+
+    @property
+    def reference_field(self) -> xr.Dataset:
+        """Champ utilisé comme vérité par le générateur synthétique."""
+        assert self._full is not None, "call setup() first"
+        return self._full
+
     def _make(self, period: list[str]) -> _Era5WindowDataset:
         assert self._full is not None, "setup() must be called first"
         sub = self._full.sel(time=slice(period[0], period[1]))

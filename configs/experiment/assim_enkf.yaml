@@ -2,15 +2,20 @@
 # Assimilation par Ensemble Kalman Filter — ensemble fourni par la diffusion.
 defaults:
   - override /dataloader: era5_arco_bog
+  - override /fetchers: cmems_ascat
 
 experiment_name: assim_enkf
 tags: ["assim", "enkf", "ensemble"]
 
+window:
+  t0: "2024-06-01T00:00:00Z"
+  t1: "2024-06-02T00:00:00Z"
+
 assim:
   _target_: wxrouting.assim.enkf.EnKFAssimilator
   ensemble_size: 32
-  inflation: 1.05               # multiplicative inflation
-  localization_radius_km: 300   # Gaspari-Cohn cutoff
+  inflation: 1.05
+  localization_radius_km: 300
   window_hours: 24
-  obs_sources: ["ais", "buoys", "windfarm", "ascat"]
-  checkpoint: ???
+
+checkpoint: ???

@@ -2,13 +2,20 @@
 # Assimilation par nudging (baseline pédagogique).
 defaults:
   - override /dataloader: era5_arco_bog
+  - override /fetchers: synthetic_only
 
 experiment_name: assim_nudging
 tags: ["assim", "nudging", "baseline"]
 
+# Fenêtre d'assimilation (UTC ISO 8601).
+window:
+  t0: "2024-06-01T00:00:00Z"
+  t1: "2024-06-02T00:00:00Z"
+
 assim:
   _target_: wxrouting.assim.nudging.NudgingAssimilator
-  alpha: 0.1                    # coefficient de relaxation
+  alpha: 0.1
   window_hours: 24
-  obs_sources: ["ais", "buoys"]
-  checkpoint: ???               # checkpoint fine-tuné à fournir
+
+# Optionnel : checkpoint fine-tuné. Null => on utilise le dataloader pour x_b.
+checkpoint: null
