@@ -10,6 +10,7 @@ from __future__ import annotations
 import hydra
 import lightning as L
 from hydra.utils import instantiate
+from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
 from ..data.crop import Domain
@@ -25,7 +26,16 @@ def main(cfg: DictConfig) -> None:
     datamodule = instantiate(cfg.dataloader, domain=domain)
     module = instantiate(cfg.module)
 
-    callbacks: list[L.Callback] = []
+    callbacks: list[L.Callback] = [
+        # Conserve le MEILLEUR checkpoint (val) + le dernier (reprise).
+        ModelCheckpoint(
+            monitor="val/loss",
+            mode="min",
+            save_top_k=1,
+            save_last=True,
+            filename="finetune-{epoch:02d}",
+        ),
+    ]
     if cfg.module.freeze.get("unfreeze_after_epochs"):
         callbacks.append(
             ProgressiveUnfreeze(after_epochs=cfg.module.freeze.unfreeze_after_epochs)

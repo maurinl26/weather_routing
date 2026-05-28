@@ -1,0 +1,25 @@
+#cloud-config
+# Prépare la box GPU : drivers/toolkit (si image non-GPU), Docker, uv, git.
+# L'entraînement N'EST PAS lancé automatiquement (contrôle des coûts) :
+# se connecter en SSH puis exécuter scripts/setup_training.sh.
+package_update: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - build-essential
+  - libgeos-dev
+  - libproj-dev
+  - libnetcdf-dev
+  - libhdf5-dev
+
+runcmd:
+  # uv (gestion des deps Python)
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Docker + NVIDIA Container Toolkit (option conteneur ; sinon uv en natif)
+  - curl -fsSL https://get.docker.com | sh
+  - curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  - curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  - apt-get update && apt-get install -y nvidia-container-toolkit || true
+  - nvidia-ctk runtime configure --runtime=docker && systemctl restart docker || true
+  - echo "Box prête. SSH puis: git clone <repo> && cd weather_routing && scripts/setup_training.sh"

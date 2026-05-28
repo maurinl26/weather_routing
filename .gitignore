@@ -52,3 +52,8 @@ runs/
 .env
 .cdsapirc                 # clés Copernicus
 *.key
+
+# Terraform
+infra/**/.terraform/
+*.tfstate
+*.tfstate.*
