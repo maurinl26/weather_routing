@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from wxrouting.data.era5_arco import Era5ArcoDataModule
+from wxrouting.data.era5_arco import Era5ArcoDataModule, _Era5WindowDataset
 
 
 def _tiny_datamodule() -> Era5ArcoDataModule:
@@ -69,3 +69,32 @@ def test_background_state_rejects_out_of_range():
     dm = _tiny_datamodule()
     with pytest.raises(ValueError, match="outside ERA5 coverage"):
         dm.background_state("2023-01-01T00:00:00")
+
+
+# --- dataset fenêtré (chemin d'entraînement, sans réseau) --------------------
+
+def test_window_dataset_shapes_and_lead_indexing():
+    """Valide le windowing (x_t, x_{t+lead}) + le stacking en (C, H, W)."""
+    dm = _tiny_datamodule()
+    # 6 pas horaires couverts par la fenêtre test (2024-06-01 → 2024-06-02).
+    times = pd.date_range("2024-06-01", periods=6, freq="1h")
+    lat = np.array([46.0, 45.0, 44.0])
+    lon = np.array([350.0, 351.0])
+    shape = (len(times), len(lat), len(lon))
+    dm._full = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("time", "latitude", "longitude"), np.random.rand(*shape)),
+            "10m_v_component_of_wind": (("time", "latitude", "longitude"), np.random.rand(*shape)),
+        },
+        coords={"time": times, "latitude": lat, "longitude": lon},
+    )
+    ds = dm._make(dm.test_period)
+    assert isinstance(ds, _Era5WindowDataset)
+    assert len(ds) >= 1
+    sample = ds[0]
+    assert set(sample) == {"x", "y"}
+    # 2 canaux surface (spec sans niveaux), grille 3×2
+    assert tuple(sample["x"].shape) == (2, 3, 2)
+    assert tuple(sample["y"].shape) == (2, 3, 2)
+    # x et y sont des pas de temps distincts (lead > 0)
+    assert not np.allclose(sample["x"].numpy(), sample["y"].numpy())

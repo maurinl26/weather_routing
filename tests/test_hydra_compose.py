@@ -68,3 +68,21 @@ def test_checkpoint_optional_for_nudging():
     with initialize_config_dir(version_base="1.3", config_dir=ABS_CONFIG_DIR):
         cfg = compose(config_name="config", overrides=["experiment=assim_nudging"])
     assert OmegaConf.select(cfg, "checkpoint", throw_on_missing=True) is None
+
+
+def test_finetune_experiment_composes_with_trainer_keys():
+    """Toutes les clés lues par cli/train.py doivent exister — sinon le Trainer
+    plante au démarrage sur la box GPU (surprise d'infra à éviter)."""
+    with initialize_config_dir(version_base="1.3", config_dir=ABS_CONFIG_DIR):
+        cfg = compose(config_name="config", overrides=["experiment=finetune_bog"])
+    # Clés cluster consommées par L.Trainer(...)
+    for k in ("accelerator", "devices", "num_nodes", "strategy", "precision"):
+        assert k in cfg.cluster, f"cluster.{k} manquant"
+    # Clés module.trainer consommées par L.Trainer(...)
+    for k in ("max_epochs", "gradient_clip_val", "accumulate_grad_batches",
+              "log_every_n_steps", "val_check_interval"):
+        assert k in cfg.module.trainer, f"module.trainer.{k} manquant"
+    assert cfg.module._target_.endswith("ArchesGenFinetune")
+    assert cfg.dataloader._target_.endswith("Era5ArcoDataModule")
+    assert cfg.module.optimizer._target_ and cfg.module.scheduler._target_
+    assert "backbone" in cfg.module.freeze

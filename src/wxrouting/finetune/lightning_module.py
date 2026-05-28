@@ -51,7 +51,9 @@ class ArchesGenFinetune(L.LightningModule):
         if freeze.get("backbone", False):
             freeze_backbone(self.model)
             trainable, total = count_trainable(self.model)
-            self.print(f"[freeze] trainable params: {trainable}/{total}")
+            # print natif : __init__ s'exécute AVANT l'attache au Trainer
+            # (self.print/self.log lèveraient "not attached to a Trainer").
+            print(f"[freeze] trainable params: {trainable}/{total}")
 
     # --------------------------------------------------------------------
     # Training : on s'appuie sur l'API training_step de geoarches si dispo
