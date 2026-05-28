@@ -6,10 +6,12 @@ import xarray as xr
 
 from wxrouting.routing import (
     ConstantWindField,
+    DPRouter,
     EnsembleWindField,
     GriddedWindField,
     IsochroneRouter,
     Polar,
+    pareto_routes,
     route_ensemble,
 )
 from wxrouting.routing.geo import (
@@ -187,3 +189,59 @@ def test_route_ensemble_aggregates_members():
     assert durations[2] < durations[0]
     # la route recommandée est l'une des routes membres
     assert res.recommended in res.member_routes
+
+
+# --- DP + Pareto -------------------------------------------------------------
+
+def _patchy_field() -> GriddedWindField:
+    """Vent de base d'ouest (12 kn, beam reach N-S) + patch fort (35 kn) à éviter."""
+    import xarray as xr
+
+    lat = np.arange(43.0, 47.0 + 1e-9, 0.5)
+    lon_neg = np.arange(-6.0, -4.0 + 1e-9, 0.5)
+    times = np.array(["2024-06-01T00", "2024-06-04T00"], dtype="datetime64[ns]")
+    u = np.full((len(times), len(lat), len(lon_neg)), 6.0)
+    for i, la in enumerate(lat):
+        for j, lo in enumerate(lon_neg):
+            if 44.5 <= la <= 45.5 and -5.5 <= lo <= -4.5:
+                u[:, i, j] = 18.0  # ~35 kn > seuil 22 → risque
+    v = np.zeros_like(u)
+    ds = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("time", "latitude", "longitude"), u),
+            "10m_v_component_of_wind": (("time", "latitude", "longitude"), v),
+        },
+        coords={"time": times, "latitude": lat, "longitude": lon_neg % 360.0},
+    )
+    return GriddedWindField(ds)
+
+
+def test_dp_reaches_and_zero_risk_below_threshold():
+    field = ConstantWindField(u_ms=6.0, v_ms=0.0)  # 12 kn d'ouest, beam reach
+    res = DPRouter(field, Polar.example(), grid_deg=0.5, max_hours=200).solve(
+        (45.0, -5.0), (44.0, -5.0), np.datetime64("2024-06-01T00:00:00")
+    )
+    assert res.reached
+    assert res.duration_h > 0
+    assert res.risk == 0.0  # 12 kn < seuil 22 → aucune exposition
+
+
+def test_pareto_front_time_vs_risk():
+    field = _patchy_field()
+    front = pareto_routes(
+        field,
+        Polar.example(),
+        (46.0, -5.0),
+        (44.0, -5.0),
+        np.datetime64("2024-06-01T00:00:00"),
+        risk_weights=(0.0, 5.0, 50.0),
+        grid_deg=0.5,
+        margin_deg=1.0,
+        max_hours=200,
+    )
+    assert len(front) >= 2                       # un vrai compromis existe
+    # trié par durée croissante : la plus rapide est la plus risquée
+    assert front[0].duration_h <= front[-1].duration_h
+    assert front[0].risk >= front[-1].risk
+    assert front[0].risk > 0.0                   # la route rapide traverse la zone ventée
+    assert front[-1].risk < front[0].risk        # une route plus sûre, plus longue, existe
