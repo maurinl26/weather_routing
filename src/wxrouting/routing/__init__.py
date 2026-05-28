@@ -10,11 +10,13 @@ from .field import (
     ConstantWindField,
     EnsembleWindField,
     GriddedWindField,
+    MeanWindField,
     WindField,
 )
 from .isochrone import IsochroneRouter, Route
 from .polar import Polar
 from .risk import leg_exposure, route_risk
+from .robust import RobustRoute, robust_pareto_routes
 
 __all__ = [
     "WindField",
@@ -26,9 +28,12 @@ __all__ = [
     "Route",
     "EnsembleRoute",
     "route_ensemble",
+    "MeanWindField",
     "DPRouter",
     "DPResult",
     "pareto_routes",
     "leg_exposure",
     "route_risk",
+    "RobustRoute",
+    "robust_pareto_routes",
 ]

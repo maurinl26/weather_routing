@@ -12,6 +12,7 @@ from wxrouting.routing import (
     IsochroneRouter,
     Polar,
     pareto_routes,
+    robust_pareto_routes,
     route_ensemble,
 )
 from wxrouting.routing.geo import (
@@ -245,3 +246,48 @@ def test_pareto_front_time_vs_risk():
     assert front[0].risk >= front[-1].risk
     assert front[0].risk > 0.0                   # la route rapide traverse la zone ventée
     assert front[-1].risk < front[0].risk        # une route plus sûre, plus longue, existe
+
+
+# --- risque robuste sur l'ensemble -------------------------------------------
+
+def _mild_field() -> GriddedWindField:
+    """Vent d'ouest uniforme 12 kn (aucune zone ventée)."""
+    import xarray as xr
+
+    lat = np.arange(43.0, 47.0 + 1e-9, 0.5)
+    lon_neg = np.arange(-6.0, -4.0 + 1e-9, 0.5)
+    times = np.array(["2024-06-01T00", "2024-06-04T00"], dtype="datetime64[ns]")
+    u = np.full((len(times), len(lat), len(lon_neg)), 6.0)
+    v = np.zeros_like(u)
+    ds = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("time", "latitude", "longitude"), u),
+            "10m_v_component_of_wind": (("time", "latitude", "longitude"), v),
+        },
+        coords={"time": times, "latitude": lat, "longitude": lon_neg % 360.0},
+    )
+    return GriddedWindField(ds)
+
+
+def test_robust_pareto_rescores_risk_across_members():
+    # Tempête présente dans 2 membres sur 3 ⇒ la route directe est risquée 2/3 du temps.
+    ensemble = EnsembleWindField([_patchy_field(), _mild_field(), _patchy_field()])
+    front = robust_pareto_routes(
+        ensemble,
+        Polar.example(),
+        (46.0, -5.0),
+        (44.0, -5.0),
+        np.datetime64("2024-06-01T00:00:00"),
+        risk_weights=(0.0, 5.0, 50.0),
+        grid_deg=0.5,
+        margin_deg=1.0,
+        max_hours=200,
+        tws_safe_kn=22.0,
+    )
+    assert len(front) >= 1
+    fast = front[0]                                   # route la plus rapide
+    assert len(fast.member_risks) == 3                # re-scorée sur chaque membre
+    # la moyenne lisse la dispersion : le pire membre dépasse la moyenne
+    assert fast.risk_max > fast.risk_mean > 0.0
+    # la route directe rencontre la tempête dans 2 membres sur 3
+    assert fast.rough_probability == pytest.approx(2 / 3)

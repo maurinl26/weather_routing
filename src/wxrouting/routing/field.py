@@ -94,6 +94,11 @@ class EnsembleWindField:
     def member(self, i: int) -> WindField:
         return self.members[i]
 
+    def mean_field(self) -> MeanWindField:
+        """Champ moyen d'ensemble (moyenne vectorielle de u, v) — sert de champ de
+        recherche au DP robuste (cf. routing.robust)."""
+        return MeanWindField(self.members)
+
     def __len__(self) -> int:
         return self.n_members
 
@@ -117,3 +122,20 @@ class EnsembleWindField:
         else:
             members = [GriddedWindField(ds, u_var, v_var)]
         return cls(members)
+
+
+class MeanWindField(WindField):
+    """Moyenne vectorielle (u, v) d'un ensemble de champs.
+
+    Attention : la moyenne **lisse** la dispersion (les rafales d'un membre sont
+    diluées). Elle convient pour estimer une géométrie de route « espérée », mais
+    PAS pour évaluer le risque — celui-ci doit être re-scoré membre par membre
+    (cf. routing.robust).
+    """
+
+    def __init__(self, members: list[WindField]):
+        self.members = members
+
+    def wind_uv(self, lats, lons, when: np.datetime64):
+        us, vs = zip(*(m.wind_uv(lats, lons, when) for m in self.members), strict=True)
+        return np.mean(us, axis=0), np.mean(vs, axis=0)

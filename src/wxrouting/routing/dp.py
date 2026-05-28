@@ -206,27 +206,30 @@ def pareto_routes(
         for w in risk_weights
     ]
     candidates = [c for c in candidates if c.reached]
-    return _non_dominated(candidates)
+    return _non_dominated_by(candidates, lambda r: r.duration_h, lambda r: r.risk)
 
 
-def _non_dominated(results: list[DPResult]) -> list[DPResult]:
-    front: list[DPResult] = []
-    for r in results:
+def _non_dominated_by(items, time_key, risk_key):
+    """Front de Pareto générique : minimiser `time_key` ET `risk_key`.
+
+    Garde les éléments non dominés, triés par temps, dédoublonnés sur (temps, risque).
+    """
+    front = []
+    for r in items:
         if any(
-            o.duration_h <= r.duration_h
-            and o.risk <= r.risk
-            and (o.duration_h < r.duration_h or o.risk < r.risk)
-            for o in results
+            time_key(o) <= time_key(r)
+            and risk_key(o) <= risk_key(r)
+            and (time_key(o) < time_key(r) or risk_key(o) < risk_key(r))
+            for o in items
             if o is not r
         ):
             continue
         front.append(r)
-    # dédoublonne les points (durée, risque) quasi identiques
     seen: set[tuple[float, float]] = set()
-    uniq: list[DPResult] = []
-    for r in sorted(front, key=lambda x: x.duration_h):
-        key = (round(r.duration_h, 3), round(r.risk, 3))
-        if key not in seen:
-            seen.add(key)
+    uniq = []
+    for r in sorted(front, key=time_key):
+        k = (round(time_key(r), 3), round(risk_key(r), 3))
+        if k not in seen:
+            seen.add(k)
             uniq.append(r)
     return uniq
