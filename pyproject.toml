@@ -57,6 +57,7 @@ model = [
 [project.scripts]
 wxr-train = "wxrouting.cli.train:main"
 wxr-assim = "wxrouting.cli.assimilate:main"
+wxr-route = "wxrouting.routing.cli:main"
 
 [build-system]
 requires = ["hatchling"]

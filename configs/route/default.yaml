@@ -1,0 +1,8 @@
+# [PoC routage] Paramètres de routage isochrone v1.
+# Couloir de démonstration : Brest → La Corogne (rail Manche → Atlantique sud).
+start: [48.36, -4.49]      # Brest (lat, lon)
+end:   [43.37, -8.40]      # La Corogne
+step_hours: 3.0            # pas de propagation du front
+n_headings: 36             # caps éventaillés par point
+heading_spread_deg: 110.0  # ±spread autour du cap vers l'arrivée (autorise le louvoyage)
+polar_csv: null            # null => polaire voilier exemple intégrée

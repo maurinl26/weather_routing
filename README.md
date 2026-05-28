@@ -1,15 +1,34 @@
 # Weather Routing — Fine-tuning d'ArchesWeatherGen sur le Golfe de Gascogne
 
-> Cas d'usage pédagogique pour le cours d'**assimilation de données**.
-> Objectif : adapter un modèle météo neuronal (ArchesWeatherGen, INRIA) à une
-> zone régionale — le Golfe de Gascogne — puis y assimiler des **observations
+> Adapter un modèle météo neuronal (ArchesWeatherGen, INRIA) à une zone
+> régionale — le Golfe de Gascogne — puis y assimiler des **observations
 > d'opportunité** (voiliers, cargos à assistance vélique, fermes éoliennes
 > offshore, bouées, ASCAT) pour produire des prévisions de vent utiles au
 > **routage maritime**.
 
+Le dépôt sert **deux objectifs** qui partagent la même pile d'assimilation :
+
+1. **Cours d'assimilation de données** — support pédagogique (TP, trois schémas
+   de DA du nudging au score-based).
+2. **PoC routage commercial** — démonstrateur pour la prospection (cf. vault
+   Obsidian `routage-maritime/`), qui **réutilise** toute la pile DA comme couche
+   de prévision et y ajoute le routage proprement dit.
+
+### Périmètres — légende
+
+Chaque brique ci-dessous est étiquetée :
+
+- **`[Cours DA]`** — développée pour le cours d'assimilation, **réutilisée telle
+  quelle** par la PoC comme couche de prévision wind-aware.
+- **`[PoC routage]`** — spécifique à la PoC commerciale (hors périmètre du cours).
+
+> En pratique, **toute la pile DA est `[Cours DA]` réutilisée** ; le delta propre
+> à la PoC (`[PoC routage]`) se réduit au **module de routage**, à l'**extraction
+> de données réelles** et à l'**évaluation/livrables commerciaux**.
+
 ---
 
-## 1. Le modèle — ArchesWeatherGen
+## 1. Le modèle — ArchesWeatherGen &nbsp;`[Cours DA]`
 
 **ArchesWeatherGen** est le modèle météo *génératif* (basé diffusion) de l'équipe
 ARCHES d'INRIA, packagé dans la librairie [`geoarches`](https://github.com/INRIA/geoarches).
@@ -49,7 +68,7 @@ C'est l'angle pédagogique principal du cours.
 
 ---
 
-## 2. Les données
+## 2. Les données &nbsp;`[Cours DA]`
 
 ### 2.1 Champ d'arrière-plan (*background*) — ERA5
 
@@ -97,7 +116,7 @@ C'est le contrat qu'attendent les solveurs d'assimilation (cf. §4).
 
 ---
 
-## 3. Fine-tuning régional
+## 3. Fine-tuning régional &nbsp;`[Cours DA]`
 
 Le modèle global d'ArchesWeatherGen ne "connaît" pas les spécificités du
 Golfe de Gascogne (brises thermiques, accélérations sur le rail d'Ouessant,
@@ -129,7 +148,7 @@ cloud à la demande — seul change le groupe `cluster=...`.
 
 ---
 
-## 4. Assimilation de données
+## 4. Assimilation de données &nbsp;`[Cours DA]`
 
 C'est le cœur pédagogique. Le repo expose **trois schémas** d'assimilation,
 du plus classique au plus moderne, tous branchés sur le **même** state vector
@@ -169,14 +188,17 @@ second est analytique (`H` linéaire, `R` diagonale). Cela donne des
 **analyses cohérentes** avec la physique apprise par le modèle, sans
 hypothèse de gaussianité sur **B**.
 
-### Application au routage
+### Application au routage &nbsp;`[PoC routage]`
 
 Une fois l'analyse `x_a` produite, on relance ArchesWeatherGen depuis `x_a`
-pour obtenir une **prévision de vent à 6/24/72 h** sur le Golfe de Gascogne,
-puis on alimente un **solveur de routage isochrone** (hors scope de ce repo,
-typiquement [`weatherrouting`](https://github.com/enrkros/weatherrouting) ou
-un solveur maison) pour produire la route optimale d'un voilier ou d'un
-cargo à assistance vélique.
+pour obtenir une **prévision de vent (ensemble) à 6/24/72 h** sur le Golfe de
+Gascogne, puis on alimente un **solveur de routage** pour produire la route
+optimale d'un voilier ou d'un cargo à assistance vélique.
+
+Le routage est la brique **propre à la PoC commerciale** (au-delà du cours DA) :
+il consomme l'ensemble de prévision comme champ de vent et propage l'incertitude
+jusqu'à une enveloppe de routes. Module à venir dans `src/wxrouting/routing/`
+(cf. note vault *Routage sur ArchesWeatherGen* et la PoC `routage-maritime/`).
 
 ---
 
@@ -191,10 +213,10 @@ weather_routing/
 │   │   ├── era5_cds.py     # téléchargement CDS ponctuel
 │   │   ├── crop.py         # cropping Golfe de Gascogne
 │   │   └── obs/            # AIS, wind farms, buoys, ASCAT — H operators
-│   ├── finetune/           # boucles Lightning, callbacks LoRA
-│   ├── assim/              # nudging, EnKF, diffusion posterior sampling
-│   └── routing/            # interface vers solveur isochrone
-├── notebooks/              # supports de cours (TP)
+│   ├── finetune/           # [Cours DA] boucles Lightning, callbacks LoRA
+│   ├── assim/              # [Cours DA] nudging, EnKF, diffusion posterior sampling
+│   └── routing/            # [PoC routage] solveur isochrone / DP (à venir)
+├── notebooks/              # [Cours DA] supports de cours (TP)
 ├── scripts/                # SLURM, Docker, lancement cloud
 └── tests/
 ```
