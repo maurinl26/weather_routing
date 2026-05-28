@@ -1,0 +1,8 @@
+# Générateur d'AIS synthétique — voiliers d'opportunité pour TP.
+# Le champ de référence est injecté à l'exécution (cf. cli/assimilate.py).
+_target_: wxrouting.data.fetchers.synthetic_ais.SyntheticAISFetcher
+n_vessels: 20
+n_points_per_track: 24
+speed_ms: 6.0
+noise_sigma_ms: 1.0
+seed: 42

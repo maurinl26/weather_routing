@@ -1,0 +1,4 @@
+# Bouées / mouillages in-situ Copernicus Marine (IBI).
+_target_: wxrouting.data.fetchers.cmems_insitu.CMEMSInSituFetcher
+dataset_id: cmems_obs-ins_ibi_phybgcwav_mynrt_na_irr
+cache_dir: data/cmems_insitu

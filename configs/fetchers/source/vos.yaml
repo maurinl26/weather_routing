@@ -1,0 +1,3 @@
+# Navires d'opportunité (Voluntary Observing Ships) via GTS/IMMA.
+_target_: wxrouting.data.fetchers.vos_gts.VOSFetcher
+cache_dir: data/vos_imma

@@ -13,6 +13,8 @@ de diffusion.
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 
 from ..data.obs import Observation
@@ -33,6 +35,8 @@ def _gaspari_cohn(distances: torch.Tensor, c: float) -> torch.Tensor:
 
 
 class EnKFAssimilator(Assimilator):
+    requires_model = True
+
     def __init__(
         self,
         ensemble_size: int = 32,
@@ -47,6 +51,9 @@ class EnKFAssimilator(Assimilator):
         self.loc_c = localization_radius_km
         self.window_hours = window_hours
         self.sampler = sampler   # injecté par le runner (typiquement pl_module.sample_ensemble)
+
+    def bind_model(self, pl_module: Any) -> None:
+        self.sampler = pl_module.sample_ensemble
 
     def assimilate(
         self, x_b: torch.Tensor, observations: list[Observation]

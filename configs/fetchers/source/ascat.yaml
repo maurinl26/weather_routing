@@ -1,0 +1,6 @@
+# Vent de surface diffusiomètre ASCAT (KNMI).
+_target_: wxrouting.data.fetchers.ascat.ASCATFetcher
+backend: knmi
+cache_dir: data/ascat
+platform: metop_b
+product: ascat_25_l2

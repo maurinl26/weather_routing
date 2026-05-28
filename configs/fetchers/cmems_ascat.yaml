@@ -1,13 +1,5 @@
 # Preset : sources officielles ouvertes — DA proche d'un système opérationnel.
 # Requiert credentials Copernicus Marine (~/.copernicusmarine ou env vars).
-cmems:
-  _target_: wxrouting.data.fetchers.cmems_insitu.CMEMSInSituFetcher
-  dataset_id: cmems_obs-ins_ibi_phybgcwav_mynrt_na_irr
-  cache_dir: data/cmems_insitu
-
-ascat:
-  _target_: wxrouting.data.fetchers.ascat.ASCATFetcher
-  backend: knmi
-  cache_dir: data/ascat
-  platform: metop_b
-  product: ascat_25_l2
+defaults:
+  - source@cmems: cmems
+  - source@ascat: ascat

@@ -20,6 +20,7 @@ from .base import BBox, Fetcher, RawObsSchema
 
 class SyntheticAISFetcher(Fetcher):
     name = "synthetic_ais"
+    needs_reference = True
 
     def __init__(
         self,
@@ -40,6 +41,9 @@ class SyntheticAISFetcher(Fetcher):
         self.rng = np.random.default_rng(seed)
         self.u_var = u_var
         self.v_var = v_var
+
+    def bind_reference(self, field: object) -> None:
+        self.reference_field = field
 
     # ------------------------------------------------------------------
     def _great_circle_track(

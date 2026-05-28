@@ -54,6 +54,14 @@ class Fetcher(ABC):
 
     name: str  # identifiant unique de la source
 
+    # True si le fetcher a besoin qu'on lui injecte un champ de référence ERA5
+    # (générateurs synthétiques). Le runner appelle alors bind_reference().
+    needs_reference: bool = False
+
+    def bind_reference(self, field: object) -> None:
+        """Injecte le champ de référence. No-op par défaut (sources réelles)."""
+        return
+
     @abstractmethod
     def fetch(self, t0: str, t1: str, bbox: BBox) -> pd.DataFrame:
         """Renvoie un DataFrame conforme à `RawObsSchema` sur [t0, t1[ ∩ bbox.

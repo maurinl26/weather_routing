@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 
@@ -26,6 +27,19 @@ class AssimResult:
 
 class Assimilator(ABC):
     """Solveur d'assimilation — consomme un état de background + des obs."""
+
+    # True si le solveur a besoin du modèle (sampler / score). Le runner refuse
+    # alors de tourner sans checkpoint. Nudging reste à False.
+    requires_model: bool = False
+
+    def bind_model(self, pl_module: Any) -> None:
+        """Branche les sorties du modèle (sampler / score / denoise) sur le solveur.
+
+        No-op par défaut (cas nudging). Les solveurs qui consomment le modèle
+        surchargent et lèvent si l'interface attendue est absente — la dépendance
+        est ainsi déclarée par le solveur, pas devinée par le runner.
+        """
+        return
 
     @abstractmethod
     def assimilate(

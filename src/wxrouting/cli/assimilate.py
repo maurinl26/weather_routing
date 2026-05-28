@@ -57,20 +57,20 @@ def _build_bbox(domain: Domain) -> BBox:
     )
 
 
-def _instantiate_fetchers(cfg_fetchers: DictConfig, ref_field: Any | None) -> dict[str, Fetcher]:
-    """Instancie les fetchers, en injectant le champ de référence aux générateurs
-    synthétiques (qui en ont besoin pour produire des obs cohérentes avec ERA5)."""
-    out: dict[str, Fetcher] = {}
-    for name, sub in cfg_fetchers.items():
+def _instantiate_fetchers(cfg_fetchers: DictConfig, ref_field: Any | None) -> list[Fetcher]:
+    """Instancie les fetchers, en injectant le champ de référence à ceux qui le
+    déclarent (générateurs synthétiques) — cf. Fetcher.needs_reference."""
+    out: list[Fetcher] = []
+    for sub in cfg_fetchers.values():
         f = instantiate(sub)
-        if hasattr(f, "reference_field") and f.reference_field is None:
-            f.reference_field = ref_field
-        out[name] = f
+        if f.needs_reference:
+            f.bind_reference(ref_field)
+        out.append(f)
     return out
 
 
 def _collect_observations(
-    fetchers: dict[str, Fetcher],
+    fetchers: list[Fetcher],
     bbox: BBox,
     t0: str,
     t1: str,
@@ -83,25 +83,15 @@ def _collect_observations(
     on ne masque pas une mauvaise config en repli silencieux sur moins d'obs.
     """
     out: list[Observation] = []
-    for name, fetcher in fetchers.items():
+    for fetcher in fetchers:
         df = fetcher.fetch(t0, t1, bbox)
         if df.empty:
-            print(f"[fetch] {name}: 0 obs")
+            print(f"[fetch] {fetcher.name}: 0 obs")
             continue
-        obs = adapter.adapt(df, t0=t0, source=name)
-        print(f"[fetch] {name}: {len(df)} rows → {len(obs)} Observation groups")
+        obs = adapter.adapt(df, t0=t0, source=fetcher.name)
+        print(f"[fetch] {fetcher.name}: {len(df)} rows → {len(obs)} Observation groups")
         out.extend(obs)
     return out
-
-
-def _inject_model_hooks(assim: Any, pl_module: Any) -> None:
-    """Branche les sorties du modèle (sampler / score) sur les solveurs qui les
-    consomment (EnKF, DPS). Pas d'impact sur le nudging."""
-    if hasattr(assim, "sampler") and pl_module is not None:
-        assim.sampler = pl_module.sample_ensemble
-    if hasattr(assim, "score_fn") and pl_module is not None:
-        assim.score_fn = getattr(pl_module.model, "score", None)
-        assim.denoise_step = getattr(pl_module.model, "denoise_step", None)
 
 
 @hydra.main(config_path="../../../configs", config_name="config", version_base="1.3")
@@ -143,9 +133,15 @@ def main(cfg: DictConfig) -> None:
         pl_module.eval()
     x_b = datamodule.background_state(t0)
 
-    # 4. Solveur DA.
+    # 4. Solveur DA — chaque solveur déclare s'il a besoin du modèle et se branche
+    #    lui-même (cf. Assimilator.bind_model), plutôt que le runner ne devine.
     assim = instantiate(cfg.assim, _convert_="all")
-    _inject_model_hooks(assim, pl_module)
+    if assim.requires_model:
+        if pl_module is None:
+            raise ValueError(
+                f"{type(assim).__name__} requires a model — set checkpoint=path/to/ckpt"
+            )
+        assim.bind_model(pl_module)
 
     with torch.no_grad():
         result = assim.assimilate(x_b, observations)

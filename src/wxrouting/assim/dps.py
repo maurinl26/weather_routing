@@ -15,6 +15,8 @@ Chung et al., *Diffusion Posterior Sampling* (ICLR 2023).
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 
 from ..data.obs import Observation
@@ -22,6 +24,8 @@ from .base import Assimilator, AssimResult
 
 
 class DPSAssimilator(Assimilator):
+    requires_model = True
+
     def __init__(
         self,
         num_inference_steps: int = 50,
@@ -38,6 +42,18 @@ class DPSAssimilator(Assimilator):
         self.window_hours = window_hours
         self.denoise_step = denoise_step
         self.score_fn = score_fn
+
+    def bind_model(self, pl_module: Any) -> None:
+        model = pl_module.model
+        missing = [a for a in ("score", "denoise_step") if not hasattr(model, a)]
+        if missing:
+            raise AttributeError(
+                f"DPS requires the diffusion model to expose {missing}; "
+                f"{type(model).__name__} does not. Use a checkpoint/backbone that "
+                f"implements score(x, t) and denoise_step(x, t, score=...)."
+            )
+        self.score_fn = model.score
+        self.denoise_step = model.denoise_step
 
     def _log_likelihood_grad(
         self, x: torch.Tensor, observations: list[Observation]
