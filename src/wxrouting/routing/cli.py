@@ -42,7 +42,7 @@ def main(cfg: DictConfig) -> None:
     t1 = _normalize_iso_utc(cfg.window.t1)
     field = GriddedWindField(datamodule.reference_window(t0, t1))
 
-    polar = Polar.from_csv(cfg.route.polar_csv) if cfg.route.get("polar_csv") else Polar.example()
+    polar = Polar.from_orc(cfg.route.polar_csv) if cfg.route.get("polar_csv") else Polar.bundled()
 
     router = IsochroneRouter(
         field,

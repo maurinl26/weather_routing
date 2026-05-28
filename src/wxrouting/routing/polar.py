@@ -59,6 +59,41 @@ class Polar:
         return cls(tws=tws, twa=twa, speed=speed)
 
     @classmethod
+    def from_orc(cls, path: str | Path, sep: str | None = None) -> Polar:
+        """Charge une polaire au **format ORC/standard** : lignes = TWA, colonnes = TWS.
+
+        C'est le format des fichiers `.pol` exportés par ORC / qtVlm / Seapilot.
+        Séparateur auto-détecté (tab ou `;`). Lignes `#` ignorées.
+        """
+        return cls._parse_orc(Path(path).read_text(), sep)
+
+    @classmethod
+    def bundled(cls, name: str = "generic_monohull") -> Polar:
+        """Polaire embarquée dans le package (cf. `routing/polars/<name>.pol`).
+
+        Par défaut un monocoque générique **approximatif** — à remplacer par la
+        polaire ORC réelle du bateau via `from_orc()`.
+        """
+        from importlib.resources import files
+
+        text = files("wxrouting.routing").joinpath("polars", f"{name}.pol").read_text()
+        return cls._parse_orc(text)
+
+    @classmethod
+    def _parse_orc(cls, text: str, sep: str | None = None) -> Polar:
+        lines = [
+            ln for ln in text.splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        ]
+        if sep is None:
+            sep = "\t" if "\t" in lines[0] else ";"
+        rows = [ln.split(sep) for ln in lines]
+        tws = np.array([float(x) for x in rows[0][1:]])           # entête = TWS
+        twa = np.array([float(r[0]) for r in rows[1:]])           # 1re colonne = TWA
+        speed_at = np.array([[float(x) for x in r[1:]] for r in rows[1:]])  # (A, T)
+        return cls(tws=tws, twa=twa, speed=speed_at.T)            # interne : (T, A)
+
+    @classmethod
     def example(cls) -> Polar:
         """Polaire générique de monocoque de croisière (modèle analytique lissé).
 

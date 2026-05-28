@@ -291,3 +291,27 @@ def test_robust_pareto_rescores_risk_across_members():
     assert fast.risk_max > fast.risk_mean > 0.0
     # la route directe rencontre la tempête dans 2 membres sur 3
     assert fast.rough_probability == pytest.approx(2 / 3)
+
+
+# --- polaire réelle (ORC / bundled) ------------------------------------------
+
+def test_polar_bundled_loads():
+    from wxrouting.routing import Polar as P
+
+    p = P.bundled()
+    assert p.tws[0] == 6.0
+    assert p.twa[-1] == 180.0
+    assert float(p.boat_speed(10.0, 0.0)) == 0.0                       # no-go
+    assert float(p.boat_speed(10.0, 90.0)) > float(p.boat_speed(10.0, 40.0)) > 0
+
+
+def test_polar_from_orc(tmp_path):
+    from wxrouting.routing import Polar as P
+
+    f = tmp_path / "boat.pol"
+    f.write_text("TWA\\TWS;6;10\n0;0;0\n90;6.0;7.5\n")  # lignes=TWA, colonnes=TWS
+    p = P.from_orc(f)
+    assert p.tws.tolist() == [6.0, 10.0]
+    assert p.twa.tolist() == [0.0, 90.0]
+    assert float(p.boat_speed(6.0, 90.0)) == pytest.approx(6.0)
+    assert float(p.boat_speed(10.0, 90.0)) == pytest.approx(7.5)
