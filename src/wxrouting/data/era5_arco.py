@@ -19,6 +19,17 @@ from .crop import Domain, crop
 from .registry import StateVectorSpec
 
 
+def _stack_state(snap: xr.Dataset, spec: StateVectorSpec) -> np.ndarray:
+    """Stack surface + (var × level) en (C, H, W) — ordre figé par le registry."""
+    surf = [snap[v].values for v in spec.surface]
+    lvl = [
+        snap[v].sel(level=p).values
+        for v in spec.level
+        for p in spec.pressure_levels
+    ]
+    return np.stack(surf + lvl, axis=0).astype(np.float32)
+
+
 class _Era5WindowDataset(Dataset):
     """Renvoie des couples (x_t, x_{t+lead}) — état d'entrée et cible."""
 
@@ -43,20 +54,10 @@ class _Era5WindowDataset(Dataset):
     def __len__(self) -> int:
         return len(self.indices)
 
-    def _stack(self, snap: xr.Dataset) -> np.ndarray:
-        """Stack surface + (var × level) en (C, H, W) — ordre figé par le registry."""
-        surf = [snap[v].values for v in self.spec.surface]
-        lvl = [
-            snap[v].sel(level=p).values
-            for v in self.spec.level
-            for p in self.spec.pressure_levels
-        ]
-        return np.stack(surf + lvl, axis=0).astype(np.float32)
-
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         i = self.indices[idx]
-        x = self._stack(self.ds.isel(time=i))
-        y = self._stack(self.ds.isel(time=i + self.lead // 6))  # ARCO est horaire
+        x = _stack_state(self.ds.isel(time=i), self.spec)
+        y = _stack_state(self.ds.isel(time=i + self.lead // 6), self.spec)  # ARCO est horaire
         return {"x": torch.from_numpy(x), "y": torch.from_numpy(y)}
 
 
@@ -122,11 +123,39 @@ class Era5ArcoDataModule(L.LightningDataModule):
         assert self._full is not None, "call setup() first"
         return self._full["longitude"].values
 
-    @property
-    def reference_field(self) -> xr.Dataset:
-        """Champ utilisé comme vérité par le générateur synthétique."""
+    def _check_coverage(self, *stamps: np.datetime64) -> None:
+        """Lève si un instant sort de la couverture temporelle ERA5 — sinon
+        l'interpolation renvoie des NaN silencieux qui corrompent l'analyse."""
         assert self._full is not None, "call setup() first"
-        return self._full
+        times = self._full["time"].values
+        for t in stamps:
+            if t < times[0] or t > times[-1]:
+                raise ValueError(
+                    f"time {t} outside ERA5 coverage [{times[0]}, {times[-1]}]"
+                )
+
+    def reference_window(self, t0: str, t1: str) -> xr.Dataset:
+        """Champ de référence (vérité du générateur synthétique) borné à [t0, t1].
+
+        Cropé dans le temps pour que l'interpolation des fetchers ne balaie que
+        la fenêtre d'assimilation, et validé contre la couverture ERA5.
+        """
+        assert self._full is not None, "call setup() first"
+        t0n, t1n = np.datetime64(t0), np.datetime64(t1)
+        self._check_coverage(t0n, t1n)
+        return self._full.sel(time=slice(t0, t1))
+
+    def background_state(self, t: str) -> torch.Tensor:
+        """État de fond x_b (B=1, C, H, W) à l'instant `t` — aligné sur la fenêtre.
+
+        Sans ce branchement, le fond serait pris au premier pas du test loader
+        (~17 mois avant la fenêtre) et les innovations seraient dénuées de sens.
+        """
+        assert self._full is not None, "call setup() first"
+        tn = np.datetime64(t)
+        self._check_coverage(tn)
+        snap = self._full.sel(time=tn, method="nearest")
+        return torch.from_numpy(_stack_state(snap, self.spec)).unsqueeze(0)
 
     def _make(self, period: list[str]) -> _Era5WindowDataset:
         assert self._full is not None, "setup() must be called first"

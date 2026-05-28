@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 import hydra
+import pandas as pd
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
@@ -33,6 +34,20 @@ from omegaconf import DictConfig, OmegaConf
 from ..data.crop import Domain
 from ..data.fetchers import BBox, Fetcher
 from ..data.obs import Observation, ObservationAdapter
+
+
+def _normalize_iso_utc(ts: str) -> str:
+    """ISO 8601 (avec ou sans 'Z') → chaîne UTC naïve sans suffixe de fuseau.
+
+    np.datetime64 ne sait pas représenter les fuseaux : un 'Z' final n'est que
+    silencieusement ignoré aujourd'hui et lèvera dans une future version de
+    numpy. On normalise au seuil du CLI pour que fetchers et adapter reçoivent
+    une chaîne propre.
+    """
+    t = pd.Timestamp(ts)
+    if t.tzinfo is not None:
+        t = t.tz_convert("UTC").tz_localize(None)
+    return t.isoformat()
 
 
 def _build_bbox(domain: Domain) -> BBox:
@@ -61,14 +76,15 @@ def _collect_observations(
     t1: str,
     adapter: ObservationAdapter,
 ) -> list[Observation]:
-    """Fetch + adapt — renvoie une seule liste d'Observation, tagguées par source."""
+    """Fetch + adapt — renvoie une seule liste d'Observation, tagguées par source.
+
+    Une source sans donnée sur la fenêtre renvoie un DataFrame vide (cf. contrat
+    Fetcher) et est ignorée ; toute exception (auth, schéma, réseau) remonte —
+    on ne masque pas une mauvaise config en repli silencieux sur moins d'obs.
+    """
     out: list[Observation] = []
     for name, fetcher in fetchers.items():
-        try:
-            df = fetcher.fetch(t0, t1, bbox)
-        except Exception as e:
-            print(f"[fetch] skip {name}: {type(e).__name__}: {e}")
-            continue
+        df = fetcher.fetch(t0, t1, bbox)
         if df.empty:
             print(f"[fetch] {name}: 0 obs")
             continue
@@ -103,23 +119,29 @@ def main(cfg: DictConfig) -> None:
         grid_lon=datamodule.grid_lon,
     )
 
-    # 2. Fetch + adapt.
-    fetchers = _instantiate_fetchers(cfg.fetchers, ref_field=datamodule.reference_field)
-    observations = _collect_observations(
-        fetchers, bbox, t0=cfg.window.t0, t1=cfg.window.t1, adapter=adapter
+    t0 = _normalize_iso_utc(cfg.window.t0)
+    t1 = _normalize_iso_utc(cfg.window.t1)
+
+    # checkpoint=??? (enkf/dps) lève ici si non fourni ; null (nudging) → pas de
+    # modèle. Résolu avant le fetch pour échouer tôt, sans gâcher la collecte.
+    checkpoint = OmegaConf.select(cfg, "checkpoint", throw_on_missing=True)
+
+    # 2. Fetch + adapt — le champ de référence est borné à la fenêtre.
+    fetchers = _instantiate_fetchers(
+        cfg.fetchers, ref_field=datamodule.reference_window(t0, t1)
     )
+    observations = _collect_observations(fetchers, bbox, t0=t0, t1=t1, adapter=adapter)
     if not observations:
         print("[assim] no observations collected — aborting")
         return
 
-    # 3. Background : depuis le checkpoint si fourni, sinon depuis le datamodule.
+    # 3. Background aligné sur le début de fenêtre (et non le 1er pas du test set).
     pl_module = None
-    if cfg.get("checkpoint"):
+    if checkpoint:
         from ..finetune.lightning_module import ArchesGenFinetune
-        pl_module = ArchesGenFinetune.load_from_checkpoint(cfg.checkpoint)
+        pl_module = ArchesGenFinetune.load_from_checkpoint(checkpoint)
         pl_module.eval()
-    batch = next(iter(datamodule.test_dataloader()))
-    x_b = batch["x"]
+    x_b = datamodule.background_state(t0)
 
     # 4. Solveur DA.
     assim = instantiate(cfg.assim, _convert_="all")

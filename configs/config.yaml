@@ -19,6 +19,11 @@ domain:
   # padding (en pixels grille) pour conserver le champ réceptif du transformer
   pad_pixels: 8
 
+# Fenêtre d'assimilation par défaut (UTC ISO 8601) — un experiment la surcharge.
+window:
+  t0: "2024-06-01T00:00:00Z"
+  t1: "2024-06-02T00:00:00Z"
+
 seed: 1337
 output_dir: ${hydra:runtime.output_dir}
 
