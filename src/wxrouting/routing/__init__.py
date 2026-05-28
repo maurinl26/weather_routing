@@ -4,7 +4,13 @@ v1 : isochrone (Hagiwara) sur un champ de vent réel, polaire voilier, coût = t
 Cf. note vault *Routage sur ArchesWeatherGen* pour la feuille de route (DP + ensemble).
 """
 
-from .field import ConstantWindField, GriddedWindField, WindField
+from .ensemble import EnsembleRoute, route_ensemble
+from .field import (
+    ConstantWindField,
+    EnsembleWindField,
+    GriddedWindField,
+    WindField,
+)
 from .isochrone import IsochroneRouter, Route
 from .polar import Polar
 
@@ -12,7 +18,10 @@ __all__ = [
     "WindField",
     "ConstantWindField",
     "GriddedWindField",
+    "EnsembleWindField",
     "Polar",
     "IsochroneRouter",
     "Route",
+    "EnsembleRoute",
+    "route_ensemble",
 ]

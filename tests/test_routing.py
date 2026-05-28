@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from wxrouting.routing import ConstantWindField, GriddedWindField, IsochroneRouter, Polar
+from wxrouting.routing import (
+    ConstantWindField,
+    EnsembleWindField,
+    GriddedWindField,
+    IsochroneRouter,
+    Polar,
+    route_ensemble,
+)
 from wxrouting.routing.geo import (
     angle_to_180,
     destination_point,
@@ -113,3 +120,70 @@ def test_router_best_effort_when_unreachable():
     router = IsochroneRouter(field, Polar.example(), step_hours=1.0, max_steps=5)
     route = router.solve((45.0, -1.0), (45.0, 0.0), np.datetime64("2024-06-01T00:00:00"))
     assert route.reached is False
+
+
+# --- ensemble ----------------------------------------------------------------
+
+def test_ensemble_field_from_dataset():
+    import xarray as xr
+
+    times = np.array(["2024-06-01T00", "2024-06-01T06"], dtype="datetime64[ns]")
+    lat = np.array([46.0, 45.0])
+    lon = np.array([355.0, 356.0])
+    shape = (3, 2, 2, 2)  # (member, time, lat, lon)
+    ds = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("member", "time", "latitude", "longitude"), np.zeros(shape)),
+            "10m_v_component_of_wind": (("member", "time", "latitude", "longitude"), 6.0 * np.ones(shape)),
+        },
+        coords={"member": [0, 1, 2], "time": times, "latitude": lat, "longitude": lon},
+    )
+    ens = EnsembleWindField.from_dataset(ds)
+    assert ens.n_members == 3
+    assert isinstance(ens.member(0), GriddedWindField)
+    # un membre se comporte comme un champ scalaire normal
+    _, twd = ens.member(0).tws_twd(45.0, -5.0, np.datetime64("2024-06-01T03"))
+    assert float(twd) == pytest.approx(180.0)  # vent du sud
+
+
+def test_ensemble_field_single_when_no_member_dim():
+    import xarray as xr
+
+    ds = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("time", "latitude", "longitude"), np.zeros((1, 2, 2))),
+            "10m_v_component_of_wind": (("time", "latitude", "longitude"), np.ones((1, 2, 2))),
+        },
+        coords={
+            "time": np.array(["2024-06-01"], dtype="datetime64[ns]"),
+            "latitude": [46.0, 45.0],
+            "longitude": [355.0, 356.0],
+        },
+    )
+    assert EnsembleWindField.from_dataset(ds).n_members == 1
+
+
+def test_route_ensemble_aggregates_members():
+    # 3 membres, vent du sud de force croissante ⇒ durées décroissantes.
+    ensemble = EnsembleWindField(
+        [ConstantWindField(0.0, 5.0), ConstantWindField(0.0, 7.0), ConstantWindField(0.0, 9.0)]
+    )
+    res = route_ensemble(
+        ensemble,
+        Polar.example(),
+        (45.0, -1.0),
+        (45.0, 0.0),
+        np.datetime64("2024-06-01T00:00:00"),
+        step_hours=1.0,
+        n_headings=19,
+        max_steps=120,
+    )
+    assert len(res.member_routes) == 3
+    assert res.reached_fraction == pytest.approx(1.0)
+    assert set(res.duration_stats_h) == {"mean", "p10", "p50", "p90"}
+    assert res.duration_stats_h["p10"] <= res.duration_stats_h["p90"]
+    # le membre le plus venté (9 m/s) est le plus rapide
+    durations = [r.duration_h for r in res.member_routes]
+    assert durations[2] < durations[0]
+    # la route recommandée est l'une des routes membres
+    assert res.recommended in res.member_routes

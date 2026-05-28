@@ -73,3 +73,47 @@ class GriddedWindField(WindField):
         if np.ndim(lats) == 0 and np.ndim(lons) == 0:
             return u.reshape(()), v.reshape(())
         return u, v
+
+
+class EnsembleWindField:
+    """Ensemble de champs de vent — un `WindField` par membre.
+
+    Le routeur isochrone route un membre à la fois (cf. `routing.ensemble`) ;
+    cette classe expose simplement la collection et son cardinal.
+    """
+
+    def __init__(self, members: list[WindField]):
+        if not members:
+            raise ValueError("EnsembleWindField requiert au moins un membre")
+        self.members = members
+
+    @property
+    def n_members(self) -> int:
+        return len(self.members)
+
+    def member(self, i: int) -> WindField:
+        return self.members[i]
+
+    def __len__(self) -> int:
+        return self.n_members
+
+    @classmethod
+    def from_dataset(
+        cls,
+        ds: xr.Dataset,
+        u_var: str = "10m_u_component_of_wind",
+        v_var: str = "10m_v_component_of_wind",
+    ) -> EnsembleWindField:
+        """Construit l'ensemble depuis un cube `(member, time, lat, lon)`.
+
+        Si la dimension `member` est absente, on traite le champ comme un
+        ensemble à un seul membre.
+        """
+        if "member" in ds.dims:
+            members = [
+                GriddedWindField(ds.isel(member=i), u_var, v_var)
+                for i in range(ds.sizes["member"])
+            ]
+        else:
+            members = [GriddedWindField(ds, u_var, v_var)]
+        return cls(members)
