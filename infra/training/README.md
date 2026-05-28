@@ -16,7 +16,9 @@ terraform apply \
 # Sur la box :
 git clone <repo> weather_routing && cd weather_routing     # ou scp
 export HF_TOKEN=hf_xxx                                       # si checkpoint privé
-scripts/setup_training.sh                                    # uv sync --extra model + run
+uv sync --extra model                                        # geoarches + torch CUDA
+scripts/smoke_train.sh                                       # 1) SMOKE (~min) : valide la chaîne
+scripts/setup_training.sh                                    # 2) vrai run
 # … puis pousser le checkpoint :
 export SCW_BUCKET=wxrouting-checkpoints
 export AWS_ACCESS_KEY_ID=$SCW_ACCESS_KEY AWS_SECRET_ACCESS_KEY=$SCW_SECRET_KEY
