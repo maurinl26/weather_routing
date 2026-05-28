@@ -1,10 +1,15 @@
 """Fetcher ASCAT (Metop) — vent vecteur 10 m océan.
 
-Deux backends possibles :
-- **EUMETSAT Data Store** via le SDK `eumdac` (credentials EUMETSAT)
-- **KNMI OSI SAF** via HTTP/OPenDAP (anonyme, plus simple en TP)
+⚠️ ASCAT L2 n'est PAS réellement anonyme : tous les distributeurs demandent une
+inscription (gratuite). Backends :
+- **`podaac`** (recommandé) : PO.DAAC / NASA Earthdata via la lib `earthaccess`.
+  Compte Earthdata gratuit (env EARTHDATA_USERNAME/PASSWORD ou ~/.netrc).
+- **`eumdac`** : EUMETSAT Data Store (credentials EUMETSAT).
+- **`knmi`** : lecture des fichiers L2 déjà présents en cache (pas de download —
+  stub historique conservé pour les TP/CI hors-ligne).
 
-Par défaut on tape KNMI : produits L2 25 km résolution (`ascat_*_25_l2/`).
+Produits : L2 25 km (`ascat_25_l2`) ou côtier 12.5 km (`ascat_coastal_l2`).
+Le parsing (`_parse_l2`) suit la convention NetCDF KNMI/OSI SAF (= celle de PO.DAAC).
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ class ASCATFetcher(Fetcher):
 
     def __init__(
         self,
-        backend: Literal["knmi", "eumdac"] = "knmi",
+        backend: Literal["podaac", "eumdac", "knmi"] = "podaac",
         cache_dir: str = "data/ascat",
         platform: str = "metop_b",
         product: str = "ascat_25_l2",
@@ -67,6 +72,36 @@ class ASCATFetcher(Fetcher):
             ("metop_c", "ascat_25_l2"): "EO:EUM:DAT:0581",
         }
         return mapping[(self.platform, self.product)]
+
+    # ------------------------------------------------------------------
+    def _podaac_short_name(self) -> str:
+        """short_name PO.DAAC selon plateforme + produit (ex. ASCATB-L2-Coastal)."""
+        plat = {"metop_a": "A", "metop_b": "B", "metop_c": "C"}[self.platform]
+        kind = "Coastal" if "coastal" in self.product else "25km"
+        return f"ASCAT{plat}-L2-{kind}"
+
+    def _list_files_podaac(self, t0: str, t1: str, bbox: BBox) -> list[Path]:
+        """Recherche + téléchargement via NASA Earthdata (lib earthaccess).
+
+        Auth : EARTHDATA_USERNAME/PASSWORD ou ~/.netrc (compte gratuit).
+        """
+        try:
+            import earthaccess  # import paresseux
+        except ImportError as e:
+            raise RuntimeError(
+                "Backend podaac : `pip install earthaccess` + compte NASA Earthdata."
+            ) from e
+
+        earthaccess.login()  # stratégie auto : env vars puis ~/.netrc
+        results = earthaccess.search_data(
+            short_name=self._podaac_short_name(),
+            temporal=(t0, t1),
+            bounding_box=(bbox.lon_min, bbox.lat_min, bbox.lon_max, bbox.lat_max),
+        )
+        if not results:
+            return []
+        paths = earthaccess.download(results, local_path=str(self.cache_dir))
+        return [Path(p) for p in paths]
 
     # ------------------------------------------------------------------
     def _list_files_knmi(self, t0: str, t1: str) -> list[Path]:
@@ -128,7 +163,9 @@ class ASCATFetcher(Fetcher):
 
     # ------------------------------------------------------------------
     def fetch(self, t0: str, t1: str, bbox: BBox) -> pd.DataFrame:
-        if self.backend == "eumdac":
+        if self.backend == "podaac":
+            files = self._list_files_podaac(t0, t1, bbox)
+        elif self.backend == "eumdac":
             files = self._list_files_eumdac(t0, t1, bbox)
         else:
             files = self._list_files_knmi(t0, t1)

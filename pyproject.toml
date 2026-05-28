@@ -53,6 +53,11 @@ dev = [
 model = [
     "geoarches @ git+https://github.com/INRIA/geoarches.git",
 ]
+# Accès aux observations réelles (comptes gratuits requis).
+obs = [
+    "earthaccess>=0.9",       # ASCAT via PO.DAAC / NASA Earthdata
+    "copernicusmarine>=1.3",  # CMEMS in-situ
+]
 
 [project.scripts]
 wxr-train = "wxrouting.cli.train:main"

@@ -1,6 +1,8 @@
-# Vent de surface diffusiomètre ASCAT (KNMI).
+# Vent de surface diffusiomètre ASCAT (Metop).
+# Backend podaac = NASA Earthdata (compte gratuit : EARTHDATA_USERNAME/PASSWORD
+# ou ~/.netrc). Mettre backend: knmi pour lire des fichiers déjà en cache.
 _target_: wxrouting.data.fetchers.ascat.ASCATFetcher
-backend: knmi
+backend: podaac
 cache_dir: data/ascat
 platform: metop_b
 product: ascat_25_l2

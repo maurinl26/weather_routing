@@ -77,3 +77,23 @@ def test_cmems_fetcher_constructs_without_sdk():
     f = CMEMSInSituFetcher()
     assert f.name == "cmems_insitu"
     assert f.needs_reference is False
+
+
+def test_ascat_podaac_short_name_mapping():
+    assert ASCATFetcher(platform="metop_b", product="ascat_25_l2")._podaac_short_name() == "ASCATB-L2-25km"
+    assert ASCATFetcher(platform="metop_c", product="ascat_coastal_l2")._podaac_short_name() == "ASCATC-L2-Coastal"
+
+
+def test_ascat_podaac_requires_earthaccess(monkeypatch):
+    # Sans earthaccess installé, le backend podaac lève un message clair.
+    import importlib
+
+    if importlib.util.find_spec("earthaccess") is not None:
+        import pytest
+
+        pytest.skip("earthaccess installé — test du chemin d'erreur sans objet")
+    f = ASCATFetcher(backend="podaac")
+    import pytest
+
+    with pytest.raises(RuntimeError, match="earthaccess"):
+        f.fetch("2024-06-01", "2024-06-02", BBOX)
