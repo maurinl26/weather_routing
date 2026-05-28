@@ -55,7 +55,9 @@ def main(cfg: DictConfig) -> None:
         default_root_dir=cfg.output_dir,
         callbacks=callbacks,
     )
-    trainer.fit(module, datamodule=datamodule)
+    # Reprise depuis un checkpoint (robustesse aux interruptions spot/à la demande).
+    ckpt_path = OmegaConf.select(cfg, "resume", default=None)
+    trainer.fit(module, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":

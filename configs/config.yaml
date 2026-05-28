@@ -28,6 +28,9 @@ window:
 seed: 1337
 output_dir: ${hydra:runtime.output_dir}
 
+# Reprise d'entraînement : chemin d'un checkpoint (.ckpt) ou null.
+resume: null
+
 hydra:
   run:
     dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

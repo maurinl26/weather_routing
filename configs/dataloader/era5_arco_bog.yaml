@@ -25,3 +25,7 @@ sample_stride_hours: 6     # tous les pas de temps
 
 batch_size: 4
 num_workers: ${cluster.num_workers}
+
+# Charge la période en RAM (petites fenêtres / smoke run) — false pour les
+# longues périodes, sinon explosion mémoire.
+cache_in_memory: false

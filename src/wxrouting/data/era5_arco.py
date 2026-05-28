@@ -20,14 +20,19 @@ from .registry import StateVectorSpec
 
 
 def _stack_state(snap: xr.Dataset, spec: StateVectorSpec) -> np.ndarray:
-    """Stack surface + (var × level) en (C, H, W) — ordre figé par le registry."""
-    surf = [snap[v].values for v in spec.surface]
-    lvl = [
-        snap[v].sel(level=p).values
-        for v in spec.level
-        for p in spec.pressure_levels
-    ]
-    return np.stack(surf + lvl, axis=0).astype(np.float32)
+    """Stack surface + (var × level) en (C, H, W) — ordre figé par le registry.
+
+    Les variables de niveau sont lues en **une fois** par variable (tous les
+    niveaux d'un coup) plutôt qu'un accès par (var, niveau) — bien moins de
+    lectures lazy par échantillon sur le Zarr distant.
+    """
+    arrays = [snap[v].values for v in spec.surface]
+    if spec.level and spec.pressure_levels:
+        levels = list(spec.pressure_levels)
+        for v in spec.level:
+            block = snap[v].sel(level=levels).values  # (P, H, W), ordre = levels
+            arrays.extend(block)                      # aplati → var-major, niveau-mineur
+    return np.stack(arrays, axis=0).astype(np.float32)
 
 
 class _Era5WindowDataset(Dataset):
@@ -75,6 +80,7 @@ class Era5ArcoDataModule(L.LightningDataModule):
         batch_size: int,
         num_workers: int,
         domain: Domain | None = None,
+        cache_in_memory: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["domain"])
@@ -92,6 +98,7 @@ class Era5ArcoDataModule(L.LightningDataModule):
         self.sample_stride_hours = sample_stride_hours
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.cache_in_memory = cache_in_memory  # charge la période en RAM (petites fenêtres)
         self.domain = domain  # injecté par le runner (depuis cfg.domain)
         self._full: xr.Dataset | None = None
 
@@ -160,6 +167,10 @@ class Era5ArcoDataModule(L.LightningDataModule):
     def _make(self, period: list[str]) -> _Era5WindowDataset:
         assert self._full is not None, "setup() must be called first"
         sub = self._full.sel(time=slice(period[0], period[1]))
+        if self.cache_in_memory:
+            # Matérialise la fenêtre en RAM : accès par échantillon ~instantané
+            # (à réserver aux petites périodes — sinon explose la mémoire).
+            sub = sub.load()
         return _Era5WindowDataset(
             sub, self.spec, self.lead_time_hours, self.sample_stride_hours
         )

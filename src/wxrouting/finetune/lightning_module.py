@@ -44,6 +44,7 @@ class ArchesGenFinetune(L.LightningModule):
         scheduler: DictConfig,
         diffusion: DictConfig,
         trainer: DictConfig,
+        warmup_epochs: int = 0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -100,4 +101,14 @@ class ArchesGenFinetune(L.LightningModule):
         params = filter(lambda p: p.requires_grad, self.parameters())
         opt = instantiate(self.hparams.optimizer, params=params)
         sch = instantiate(self.hparams.scheduler, optimizer=opt)
+
+        # Warmup linéaire (en epochs) puis cosine — le cosine seul est instable
+        # en début de fine-tuning.
+        warmup = int(self.hparams.get("warmup_epochs", 0) or 0)
+        if warmup > 0:
+            from torch.optim.lr_scheduler import LinearLR, SequentialLR
+
+            warmup_sched = LinearLR(opt, start_factor=0.1, total_iters=warmup)
+            sch = SequentialLR(opt, schedulers=[warmup_sched, sch], milestones=[warmup])
+
         return {"optimizer": opt, "lr_scheduler": sch}

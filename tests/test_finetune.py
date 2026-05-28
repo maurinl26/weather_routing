@@ -139,3 +139,14 @@ def test_progressive_unfreeze_timing():
 
 def test_progressive_unfreeze_is_a_lightning_callback():
     assert isinstance(ProgressiveUnfreeze(after_epochs=1), L.Callback)
+
+
+def test_configure_optimizers_with_warmup(monkeypatch):
+    monkeypatch.setattr(lm, "_load_geoarches_model", lambda repo, revision: _DummyModel())
+    module = lm.ArchesGenFinetune(
+        pretrained_repo="x", pretrained_revision="main", warmup_epochs=2, **_cfgs()
+    )
+    from torch.optim.lr_scheduler import SequentialLR
+
+    out = module.configure_optimizers()
+    assert isinstance(out["lr_scheduler"], SequentialLR)  # warmup → cosine

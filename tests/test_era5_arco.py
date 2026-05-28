@@ -98,3 +98,42 @@ def test_window_dataset_shapes_and_lead_indexing():
     assert tuple(sample["y"].shape) == (2, 3, 2)
     # x et y sont des pas de temps distincts (lead > 0)
     assert not np.allclose(sample["x"].numpy(), sample["y"].numpy())
+
+
+def test_stack_state_channel_order_with_levels():
+    """La lecture niveaux groupée préserve l'ordre var-major / niveau-mineur."""
+    from wxrouting.data.era5_arco import _stack_state
+    from wxrouting.data.registry import StateVectorSpec
+
+    lat, lon, levels = [45.0, 44.0], [350.0, 351.0], [500, 850]
+    snap = xr.Dataset(
+        {
+            "u10": (("latitude", "longitude"), np.full((2, 2), 1.0)),
+            "t": (("level", "latitude", "longitude"),
+                  np.stack([np.full((2, 2), 10.0), np.full((2, 2), 20.0)])),
+        },
+        coords={"latitude": lat, "longitude": lon, "level": levels},
+    )
+    spec = StateVectorSpec(surface=("u10",), level=("t",), pressure_levels=(500, 850))
+    out = _stack_state(snap, spec)
+    assert out.shape == (3, 2, 2)            # u10 + t@500 + t@850
+    assert out[0].mean() == 1.0              # surface
+    assert out[1].mean() == 10.0             # t @ 500 (1er niveau)
+    assert out[2].mean() == 20.0             # t @ 850
+
+
+def test_cache_in_memory_make_works():
+    dm = _tiny_datamodule()
+    dm.cache_in_memory = True
+    times = pd.date_range("2024-06-01", periods=4, freq="1h")
+    shape = (len(times), 2, 2)
+    dm._full = xr.Dataset(
+        {
+            "10m_u_component_of_wind": (("time", "latitude", "longitude"), np.random.rand(*shape)),
+            "10m_v_component_of_wind": (("time", "latitude", "longitude"), np.random.rand(*shape)),
+        },
+        coords={"time": times, "latitude": [45.0, 44.0], "longitude": [350.0, 351.0]},
+    )
+    ds = dm._make(dm.test_period)   # déclenche sub.load()
+    assert len(ds) >= 1
+    assert tuple(ds[0]["x"].shape) == (2, 2, 2)

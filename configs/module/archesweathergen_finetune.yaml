@@ -22,6 +22,9 @@ scheduler:
   T_max: 50                   # epochs
   eta_min: 1.0e-6
 
+# Warmup linéaire (en epochs) avant le cosine — stabilise le début de run.
+warmup_epochs: 2
+
 # Diffusion (DDPM/EDM — cf. geoarches).
 diffusion:
   num_train_steps: 1000
